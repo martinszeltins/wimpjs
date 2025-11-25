@@ -16,8 +16,8 @@ canvas.addEventListener('mousemove', (event) => {
 
 const drawCursor = () => {
     canvasCtx.fillStyle = 'black'
-    canvasCtx.strokeStyle = 'black'
-    canvasCtx.lineWidth = 1
+    canvasCtx.lineWidth = 3
+    canvasCtx.strokeStyle = 'white'
     
     canvasCtx.beginPath()
     canvasCtx.moveTo(mouseX, mouseY)
@@ -28,15 +28,19 @@ const drawCursor = () => {
     canvasCtx.lineTo(mouseX + 7, mouseY + 13)
     canvasCtx.lineTo(mouseX + 12, mouseY + 13)
     canvasCtx.closePath()
-    canvasCtx.fill()
     canvasCtx.stroke()
+    canvasCtx.fill()
 }
 
 const createWindow = (x, y, width, height) => {
-    const window = { x, y, width, height }
+    const window = { x, y, width, height, pixels: null }
     windows.push(window)
 
     return window
+}
+
+const windowDraw = (window, pixels) => {
+    window.pixels = pixels
 }
 
 const drawWindows = () => {
@@ -45,6 +49,12 @@ const drawWindows = () => {
         canvasCtx.fillRect(window.x, window.y, window.width, window.height)
         canvasCtx.strokeStyle = 'black'
         canvasCtx.strokeRect(window.x, window.y, window.width, window.height)
+        
+        if (window.pixels) {
+            const imageData = canvasCtx.createImageData(window.width, window.height)
+            imageData.data.set(window.pixels)
+            canvasCtx.putImageData(imageData, window.x, window.y)
+        }
     }
 }
 
