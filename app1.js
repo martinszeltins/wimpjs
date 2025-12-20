@@ -1,4 +1,4 @@
-const window1 = createWindow(100, 100, 400, 300)
+const window1 = createWindow(100, 100, 400, 300, 'App 1')
 
 const pixels = new Uint8ClampedArray(400 * 300 * 4)
 
@@ -6,10 +6,17 @@ for (let y = 0; y < 300; y++) {
     for (let x = 0; x < 400; x++) {
         const index = (y * 400 + x) * 4
         const isBorder = x === 0 || x === 399 || y === 0 || y === 299
+        const isTitleBar = y >= 1 && y < 25 && x >= 1 && x < 399
         
-        pixels[index] = isBorder ? 0 : 255
-        pixels[index + 1] = isBorder ? 0 : 255
-        pixels[index + 2] = isBorder ? 0 : 255
+        if (isTitleBar) {
+            pixels[index] = 192
+            pixels[index + 1] = 192
+            pixels[index + 2] = 192
+        } else {
+            pixels[index] = isBorder ? 0 : 255
+            pixels[index + 1] = isBorder ? 0 : 255
+            pixels[index + 2] = isBorder ? 0 : 255
+        }
         pixels[index + 3] = 255
     }
 }
@@ -54,7 +61,7 @@ const drawText = (text, startX, startY) => {
 
 drawText('My Window', 10, 10)
 
-const buttonSize = 16
+const buttonSize = 12
 const buttonX = 400 - buttonSize - 5
 const buttonY = 5
 
