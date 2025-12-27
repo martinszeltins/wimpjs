@@ -290,13 +290,6 @@ btnDraw.addEventListener('click', () => {
     drawModeEnabled = !drawModeEnabled
     btnDraw.textContent = 'Draw Mode: ' + (drawModeEnabled ? 'ON' : 'OFF')
     btnDraw.classList.toggle('active', drawModeEnabled)
-    if (!drawModeEnabled) {
-        for (let i = 0; i < drawingLayer.length; i += 3) {
-            drawingLayer[i] = 255
-            drawingLayer[i + 1] = 255
-            drawingLayer[i + 2] = 255
-        }
-    }
 })
 
 btnMagnifier.addEventListener('click', () => {
@@ -789,13 +782,11 @@ const render = () => {
         }
     }
     
-    if (drawModeEnabled) {
-        for (let i = 0; i < framebuffer.length; i += 3) {
-            if (drawingLayer[i] !== 255 || drawingLayer[i + 1] !== 255 || drawingLayer[i + 2] !== 255) {
-                framebuffer[i] = drawingLayer[i]
-                framebuffer[i + 1] = drawingLayer[i + 1]
-                framebuffer[i + 2] = drawingLayer[i + 2]
-            }
+    for (let i = 0; i < framebuffer.length; i += 3) {
+        if (drawingLayer[i] !== 255 || drawingLayer[i + 1] !== 255 || drawingLayer[i + 2] !== 255) {
+            framebuffer[i] = drawingLayer[i]
+            framebuffer[i + 1] = drawingLayer[i + 1]
+            framebuffer[i + 2] = drawingLayer[i + 2]
         }
     }
     
