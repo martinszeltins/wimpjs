@@ -17,6 +17,24 @@ const loadClients = () => {
 
 loadClients()
 
+setTimeout(() => {
+    const windows = compositor.getWindows()
+    windows.forEach(win => {
+        const clientWindow = compositor.getWindowById(win.id)
+        if (clientWindow) {
+            clientWindow.setOnFocus(() => {
+                if (focusEffectEnabled) {
+                    focusAnimations.set(win.id, {
+                        progress: 0,
+                        scale: 1.0,
+                        flash: 1.0
+                    })
+                }
+            })
+        }
+    })
+}, 100)
+
 const canvas1 = document.getElementById('screen1')
 const canvasCtx1 = canvas1.getContext('2d')
 
@@ -62,11 +80,14 @@ let pipEnabled = false
 let mousePageX = 0
 let mousePageY = 0
 const windowAnimations = new Map()
+let focusEffectEnabled = false
+const focusAnimations = new Map()
 
 const btnEffect = document.getElementById('btnEffect')
 const btn3D = document.getElementById('btn3D')
 const btnCube = document.getElementById('btnCube')
 const btnWobbly = document.getElementById('btnWobbly')
+const btnFocus = document.getElementById('btnFocus')
 const btnAscii = document.getElementById('btnAscii')
 const btnHeatmap = document.getElementById('btnHeatmap')
 const btnDraw = document.getElementById('btnDraw')
@@ -267,6 +288,15 @@ btnWobbly.addEventListener('click', () => {
     btnWobbly.classList.toggle('active', wobblyEnabled)
     if (!wobblyEnabled) {
         wobbleData.clear()
+    }
+})
+
+btnFocus.addEventListener('click', () => {
+    focusEffectEnabled = !focusEffectEnabled
+    btnFocus.textContent = 'Focus Effect: ' + (focusEffectEnabled ? 'ON' : 'OFF')
+    btnFocus.classList.toggle('active', focusEffectEnabled)
+    if (!focusEffectEnabled) {
+        focusAnimations.clear()
     }
 })
 
@@ -740,6 +770,25 @@ const render = () => {
         }
     }
     
+    if (focusEffectEnabled) {
+        focusAnimations.forEach((anim, winId) => {
+            anim.progress += 0.08
+            
+            if (anim.progress <= 0.5) {
+                anim.scale = 1.0 + (anim.progress * 0.2)
+                anim.flash = 1.0 + (anim.progress * 1.5)
+            } else {
+                const t = (anim.progress - 0.5) * 2
+                anim.scale = 1.1 - (t * 0.1)
+                anim.flash = 1.75 - (t * 0.75)
+            }
+            
+            if (anim.progress >= 1.0) {
+                focusAnimations.delete(winId)
+            }
+        })
+    }
+    
     const framebuffer = compositor.getFramebuffer()
     
     if (heatmapEnabled) {
@@ -788,6 +837,36 @@ const render = () => {
             framebuffer[i + 1] = drawingLayer[i + 1]
             framebuffer[i + 2] = drawingLayer[i + 2]
         }
+    }
+    
+    if (focusEffectEnabled && focusAnimations.size > 0) {
+        const windows = compositor.getWindows()
+        focusAnimations.forEach((anim, winId) => {
+            const win = windows.find(w => w.id === winId)
+            if (!win) return
+            
+            const centerX = win.x + win.width / 2
+            const centerY = win.y + win.height / 2
+            
+            for (let y = Math.max(0, win.y); y < Math.min(720, win.y + win.height); y++) {
+                for (let x = Math.max(0, win.x); x < Math.min(1280, win.x + win.width); x++) {
+                    const dx = x - centerX
+                    const dy = y - centerY
+                    
+                    const srcX = Math.floor(centerX + dx / anim.scale)
+                    const srcY = Math.floor(centerY + dy / anim.scale)
+                    
+                    if (srcX >= win.x && srcX < win.x + win.width && srcY >= win.y && srcY < win.y + win.height) {
+                        const srcIdx = (srcY * 1280 + srcX) * 3
+                        const dstIdx = (y * 1280 + x) * 3
+                        
+                        framebuffer[dstIdx] = Math.min(255, framebuffer[srcIdx] * anim.flash)
+                        framebuffer[dstIdx + 1] = Math.min(255, framebuffer[srcIdx + 1] * anim.flash)
+                        framebuffer[dstIdx + 2] = Math.min(255, framebuffer[srcIdx + 2] * anim.flash)
+                    }
+                }
+            }
+        })
     }
     
     const imageData1 = canvasCtx1.createImageData(compositor.width, compositor.height)

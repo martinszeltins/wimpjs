@@ -288,6 +288,25 @@ const Compositor = () => {
         getWindows: () => windows,
         getMousePosition: () => ({ x: mouseX, y: mouseY }),
         getDraggingWindow: () => draggingWindow,
+        getWindowById: (id) => {
+            const win = windows.find(w => w.id === id)
+            if (!win) return null
+            return {
+                id: win.id,
+                updatePixels: (pixels) => {
+                    win.pixels = pixels
+                },
+                close: () => {
+                    const index = windows.indexOf(win)
+                    if (index !== -1) {
+                        windows.splice(index, 1)
+                    }
+                },
+                setOnFocus: (callback) => {
+                    win.onFocus = callback
+                }
+            }
+        },
         width,
         height
     }
