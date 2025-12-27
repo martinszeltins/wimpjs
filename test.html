@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>WIMP - Automation & Testing Demo</title>
+
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                background: #222;
+                display: flex;
+                gap: 20px;
+                min-height: 100vh;
+                font-family: monospace;
+                color: white;
+            }
+            #left {
+                flex: 0 0 400px;
+            }
+            #right {
+                flex: 1;
+            }
+            canvas {
+                display: block;
+                background: white;
+                border: 2px solid #666;
+            }
+            .log {
+                background: #111;
+                border: 2px solid #666;
+                padding: 15px;
+                height: 400px;
+                overflow-y: auto;
+                margin-top: 20px;
+                font-size: 12px;
+            }
+            .log-entry {
+                margin: 4px 0;
+                padding: 4px;
+            }
+            .log-pass {
+                color: #0f0;
+            }
+            .log-fail {
+                color: #f00;
+            }
+            .log-info {
+                color: #aaa;
+            }
+            .log-action {
+                color: #ff0;
+            }
+            h2 {
+                margin: 0 0 15px 0;
+                color: #0ff;
+            }
+            button {
+                padding: 10px 20px;
+                font-family: monospace;
+                font-size: 14px;
+                background: #0f0;
+                color: black;
+                border: none;
+                cursor: pointer;
+                font-weight: bold;
+                margin-bottom: 20px;
+            }
+            button:hover {
+                background: #0c0;
+            }
+            button:disabled {
+                background: #666;
+                cursor: not-allowed;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="left">
+            <h2>🤖 Test Automation</h2>
+            <button id="runTests">Run All Tests</button>
+            <div class="log" id="log"></div>
+        </div>
+        <div id="right">
+            <h2>Display (640x360)</h2>
+            <canvas id="screen" width="640" height="360"></canvas>
+        </div>
+        
+        <script src="server.js"></script>
+        <script src="client.js"></script>
+        <script>
+            const canvas = document.getElementById('screen')
+            const ctx = canvas.getContext('2d')
+            const logDiv = document.getElementById('log')
+            const runButton = document.getElementById('runTests')
+
+            const server = WIMPServer()
+            const client = WIMPClient(server)
+            
+            function log(message, type = 'info') {
+                const entry = document.createElement('div')
+                entry.className = 'log-entry log-' + type
+                entry.textContent = message
+                logDiv.appendChild(entry)
+                logDiv.scrollTop = logDiv.scrollHeight
+            }
+            
+            function assert(condition, message) {
+                if (condition) {
+                    log('✓ PASS: ' + message, 'pass')
+                    return true
+                } else {
+                    log('✗ FAIL: ' + message, 'fail')
+                    return false
+                }
+            }
+            
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms))
+            }
+            
+            async function test_window_focus() {
+                log('--- Test: Window Focus ---', 'info')
+                
+                const win1 = client.createWindow(50, 50, 200, 150, 'Window 1')
+                const pixels1 = win1.createPixelBuffer()
+                for (let i = 0; i < pixels1.length; i += 4) {
+                    pixels1[i] = 200; pixels1[i+1] = 220; pixels1[i+2] = 255; pixels1[i+3] = 255
+                }
+                win1.draw(pixels1)
+                
+                const win2 = client.createWindow(150, 120, 200, 150, 'Window 2')
+                const pixels2 = win2.createPixelBuffer()
+                for (let i = 0; i < pixels2.length; i += 4) {
+                    pixels2[i] = 255; pixels2[i+1] = 220; pixels2[i+2] = 200; pixels2[i+3] = 255
+                }
+                win2.draw(pixels2)
+                
+                await sleep(100)
+                
+                let windows = server.getWindows()
+                assert(windows[windows.length - 1].name === 'Window 2', 'Window 2 is initially focused')
+                
+                log('Action: Click on Window 1 at (100, 100)', 'action')
+                server.handleMouseDown(100, 100)
+                server.handleMouseUp()
+                await sleep(50)
+                
+                windows = server.getWindows()
+                assert(windows[windows.length - 1].name === 'Window 1', 'Window 1 is now focused after click')
+                
+                return true
+            }
+            
+            async function test_window_dragging() {
+                log('--- Test: Window Dragging ---', 'info')
+                
+                const windows = server.getWindows()
+                const win = windows.find(w => w.name === 'Window 1')
+                const initialX = win.x
+                const initialY = win.y
+                
+                log('Action: Drag window from (100,60) to (250,150)', 'action')
+                server.handleMouseDown(100, 60)
+                await sleep(50)
+                
+                for (let i = 0; i <= 10; i++) {
+                    const x = 100 + (150 * i / 10)
+                    const y = 60 + (90 * i / 10)
+                    server.handleMouseMove(x, y)
+                    await sleep(20)
+                }
+                
+                server.handleMouseUp()
+                await sleep(50)
+                
+                assert(Math.abs(win.x - (initialX + 150)) < 5, 'Window X position changed by ~150')
+                assert(Math.abs(win.y - (initialY + 90)) < 5, 'Window Y position changed by ~90')
+                
+                return true
+            }
+            
+            async function test_window_close() {
+                log('--- Test: Window Close Button ---', 'info')
+                
+                let windows = server.getWindows()
+                const initialCount = windows.length
+                
+                const win = windows.find(w => w.name === 'Window 2')
+                const closeX = win.x + win.width - 12
+                const closeY = win.y + 10
+                
+                log(`Action: Click close button at (${closeX}, ${closeY})`, 'action')
+                server.handleMouseDown(closeX, closeY)
+                server.handleMouseUp()
+                await sleep(50)
+                
+                windows = server.getWindows()
+                assert(windows.length === initialCount - 1, 'Window count decreased by 1')
+                assert(!windows.find(w => w.name === 'Window 2'), 'Window 2 no longer exists')
+                
+                return true
+            }
+            
+            async function test_mouse_tracking() {
+                log('--- Test: Mouse Position Tracking ---', 'info')
+                
+                log('Action: Move mouse to (320, 180)', 'action')
+                server.handleMouseMove(320, 180)
+                await sleep(50)
+                
+                const pos = server.getMousePosition()
+                assert(pos.x === 320 && pos.y === 180, 'Mouse position correctly tracked')
+                
+                return true
+            }
+            
+            async function runAllTests() {
+                runButton.disabled = true
+                logDiv.innerHTML = ''
+                
+                log('🚀 Starting automated tests...', 'info')
+                log('', 'info')
+                
+                try {
+                    await test_window_focus()
+                    await sleep(200)
+                    
+                    await test_window_dragging()
+                    await sleep(200)
+                    
+                    await test_window_close()
+                    await sleep(200)
+                    
+                    await test_mouse_tracking()
+                    
+                    log('', 'info')
+                    log('✅ All tests completed!', 'pass')
+                } catch (e) {
+                    log('❌ Test suite failed: ' + e.message, 'fail')
+                }
+                
+                runButton.disabled = false
+            }
+            
+            runButton.addEventListener('click', runAllTests)
+            
+            function render() {
+                server.composite()
+                
+                const framebuffer = server.getFramebuffer()
+                const imageData = ctx.createImageData(640, 360)
+                
+                for (let y = 0; y < 360; y++) {
+                    for (let x = 0; x < 640; x++) {
+                        const srcX = Math.floor(x * 1280 / 640)
+                        const srcY = Math.floor(y * 720 / 360)
+                        const srcIndex = (srcY * 1280 + srcX) * 4
+                        const dstIndex = (y * 640 + x) * 4
+                        
+                        imageData.data[dstIndex] = framebuffer[srcIndex]
+                        imageData.data[dstIndex + 1] = framebuffer[srcIndex + 1]
+                        imageData.data[dstIndex + 2] = framebuffer[srcIndex + 2]
+                        imageData.data[dstIndex + 3] = framebuffer[srcIndex + 3]
+                    }
+                }
+                
+                ctx.putImageData(imageData, 0, 0)
+                requestAnimationFrame(render)
+            }
+
+            render()
+            
+            log('Ready to run tests. Click "Run All Tests" button.', 'info')
+        </script>
+    </body>
+</html>

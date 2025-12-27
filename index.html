@@ -50,6 +50,46 @@
             button.active:hover {
                 background: #333;
             }
+            button:disabled {
+                background: #666;
+                cursor: not-allowed;
+                color: #999;
+            }
+            .test-log {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                width: 400px;
+                background: #111;
+                border: 2px solid black;
+                padding: 15px;
+                max-height: 300px;
+                overflow-y: auto;
+                font-size: 12px;
+                display: none;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                z-index: 1000;
+            }
+            .test-log.active {
+                display: block;
+            }
+            .log-entry {
+                margin: 4px 0;
+                padding: 4px;
+                font-family: monospace;
+            }
+            .log-pass {
+                color: #0f0;
+            }
+            .log-fail {
+                color: #f00;
+            }
+            .log-info {
+                color: #aaa;
+            }
+            .log-action {
+                color: #ff0;
+            }
             #pip {
                 position: fixed;
                 bottom: 30px;
@@ -87,7 +127,10 @@
             <button id="btnEffect">Effect: None</button>
             <button id="btnMagnifier">Magnifier: OFF</button>
             <button id="btnPip">Picture-in-Picture: OFF</button>
+            <button id="btnTest">Run Automated Tests</button>
         </div>
+        
+        <div class="test-log" id="testLog"></div>
         
         <div class="label">Display 2 (With Effects)</div>
         <canvas id="screen2" width="1280" height="720"></canvas>
@@ -126,6 +169,150 @@
             const btnEffect = document.getElementById('btnEffect')
             const btnMagnifier = document.getElementById('btnMagnifier')
             const btnPip = document.getElementById('btnPip')
+            const btnTest = document.getElementById('btnTest')
+            const testLog = document.getElementById('testLog')
+            
+            function log(message, type = 'info') {
+                const entry = document.createElement('div')
+                entry.className = 'log-entry log-' + type
+                entry.textContent = message
+                testLog.appendChild(entry)
+                testLog.scrollTop = testLog.scrollHeight
+            }
+            
+            function assert(condition, message) {
+                if (condition) {
+                    log('✓ PASS: ' + message, 'pass')
+                    return true
+                } else {
+                    log('✗ FAIL: ' + message, 'fail')
+                    return false
+                }
+            }
+            
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms))
+            }
+            
+            async function smoothMoveMouse(fromX, fromY, toX, toY, duration = 500) {
+                const steps = 30
+                const stepTime = duration / steps
+                
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps
+                    const x = fromX + (toX - fromX) * t
+                    const y = fromY + (toY - fromY) * t
+                    server.handleMouseMove(x, y)
+                    await sleep(stepTime)
+                }
+            }
+            
+            async function test_window_focus() {
+                log('--- Test: Window Focus ---', 'info')
+                
+                const windows = server.getWindows()
+                const appWindows = windows.filter(w => w.name === 'App 1' || w.name === 'App 2')
+                
+                if (appWindows.length < 2) {
+                    log('Not enough windows to test', 'info')
+                    return
+                }
+                
+                const win1 = appWindows[0]
+                const win2 = appWindows[1]
+                
+                const currentPos = server.getMousePosition()
+                const targetX = win1.x + 50
+                const targetY = win1.y + 50
+                
+                log(`Action: Move mouse to ${win1.name} and click`, 'action')
+                await smoothMoveMouse(currentPos.x, currentPos.y, targetX, targetY, 800)
+                
+                server.handleMouseDown(targetX, targetY)
+                await sleep(100)
+                server.handleMouseUp()
+                await sleep(100)
+                
+                const windowsAfter = server.getWindows()
+                assert(windowsAfter[windowsAfter.length - 1].name === win1.name, 
+                       `${win1.name} is now focused`)
+            }
+            
+            async function test_window_dragging() {
+                log('--- Test: Window Dragging ---', 'info')
+                
+                const windows = server.getWindows()
+                const win = windows.find(w => w.name === 'App 1')
+                
+                if (!win) {
+                    log('App 1 not found', 'info')
+                    return
+                }
+                
+                const initialX = win.x
+                const initialY = win.y
+                
+                const currentPos = server.getMousePosition()
+                const startX = win.x + 50
+                const startY = win.y + 10
+                const endX = startX + 150
+                const endY = startY + 80
+                
+                log('Action: Move to title bar', 'action')
+                await smoothMoveMouse(currentPos.x, currentPos.y, startX, startY, 600)
+                
+                log('Action: Click and drag window', 'action')
+                server.handleMouseDown(startX, startY)
+                await sleep(100)
+                
+                await smoothMoveMouse(startX, startY, endX, endY, 1000)
+                
+                server.handleMouseUp()
+                await sleep(100)
+                
+                assert(Math.abs(win.x - initialX) > 100, 'Window X position changed')
+                assert(Math.abs(win.y - initialY) > 50, 'Window Y position changed')
+            }
+            
+            async function test_mouse_tracking() {
+                log('--- Test: Mouse Position Tracking ---', 'info')
+                
+                const currentPos = server.getMousePosition()
+                
+                log('Action: Move mouse to (640, 360)', 'action')
+                await smoothMoveMouse(currentPos.x, currentPos.y, 640, 360, 800)
+                
+                const pos = server.getMousePosition()
+                assert(pos.x === 640 && pos.y === 360, 'Mouse position correctly tracked')
+            }
+            
+            async function runTests() {
+                btnTest.disabled = true
+                testLog.innerHTML = ''
+                testLog.classList.add('active')
+                
+                log('🚀 Starting automated tests...', 'info')
+                log('', 'info')
+                
+                try {
+                    await test_window_focus()
+                    await sleep(300)
+                    
+                    await test_window_dragging()
+                    await sleep(300)
+                    
+                    await test_mouse_tracking()
+                    
+                    log('', 'info')
+                    log('✅ All tests completed!', 'pass')
+                } catch (e) {
+                    log('❌ Test failed: ' + e.message, 'fail')
+                }
+                
+                btnTest.disabled = false
+            }
+            
+            btnTest.addEventListener('click', runTests)
             
             btnEffect.addEventListener('click', () => {
                 currentEffect = (currentEffect + 1) % effects.length
