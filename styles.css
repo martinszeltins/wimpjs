@@ -153,7 +153,8 @@ button:disabled {
     border: 3px solid black;
     max-width: 90%;
     max-height: 90%;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-header {
@@ -184,6 +185,27 @@ button:disabled {
     background: #ddd;
 }
 
-#framebufferCanvas {
-    cursor: default;
+.framebuffer-info {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.framebuffer-data {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    margin: 0;
+    overflow: auto;
+    max-height: 60vh;
+    line-height: 1.4;
+    white-space: pre;
+    border: 2px solid black;
 }

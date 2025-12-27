@@ -44,7 +44,6 @@ const btnTest = document.getElementById('btnTest')
 const btnFramebuffer = document.getElementById('btnFramebuffer')
 const testLog = document.getElementById('testLog')
 const framebufferModal = document.getElementById('framebufferModal')
-const framebufferCanvas = document.getElementById('framebufferCanvas')
 const closeModal = document.getElementById('closeModal')
 
 function log(message, type = 'info') {
@@ -209,11 +208,37 @@ btnPip.addEventListener('click', () => {
 btnTest.addEventListener('click', runTests)
 
 btnFramebuffer.addEventListener('click', () => {
-    const fbCtx = framebufferCanvas.getContext('2d')
     const framebuffer = compositor.getFramebuffer()
-    const imageData = fbCtx.createImageData(compositor.width, compositor.height)
-    imageData.data.set(framebuffer)
-    fbCtx.putImageData(imageData, 0, 0)
+    const totalBytes = framebuffer.length
+    document.getElementById('fbTotalBytes').textContent = totalBytes.toLocaleString()
+    
+    let output = ''
+    const bytesPerRow = 48
+    const pixelsPerRow = bytesPerRow / 3
+    
+    for (let i = 0; i < framebuffer.length; i += bytesPerRow) {
+        const offset = i.toString(16).padStart(8, '0').toUpperCase()
+        output += offset + '  '
+        
+        for (let j = 0; j < bytesPerRow && i + j < framebuffer.length; j++) {
+            const byte = framebuffer[i + j].toString(16).padStart(2, '0').toUpperCase()
+            output += byte + ' '
+            if ((j + 1) % 3 === 0) output += ' '
+        }
+        
+        output += ' │ '
+        
+        for (let j = 0; j < bytesPerRow && i + j < framebuffer.length; j += 3) {
+            const r = framebuffer[i + j]
+            const g = framebuffer[i + j + 1]
+            const b = framebuffer[i + j + 2]
+            output += `RGB(${r.toString().padStart(3)},${g.toString().padStart(3)},${b.toString().padStart(3)}) `
+        }
+        
+        output += '\n'
+    }
+    
+    document.getElementById('framebufferData').textContent = output
     framebufferModal.classList.add('active')
 })
 
@@ -339,11 +364,21 @@ const render = () => {
     const framebuffer = compositor.getFramebuffer()
     
     const imageData1 = canvasCtx1.createImageData(compositor.width, compositor.height)
-    imageData1.data.set(framebuffer)
+    for (let i = 0, j = 0; i < framebuffer.length; i += 3, j += 4) {
+        imageData1.data[j] = framebuffer[i]
+        imageData1.data[j + 1] = framebuffer[i + 1]
+        imageData1.data[j + 2] = framebuffer[i + 2]
+        imageData1.data[j + 3] = 255
+    }
     canvasCtx1.putImageData(imageData1, 0, 0)
     
     const imageData2 = canvasCtx2.createImageData(compositor.width, compositor.height)
-    imageData2.data.set(framebuffer)
+    for (let i = 0, j = 0; i < framebuffer.length; i += 3, j += 4) {
+        imageData2.data[j] = framebuffer[i]
+        imageData2.data[j + 1] = framebuffer[i + 1]
+        imageData2.data[j + 2] = framebuffer[i + 2]
+        imageData2.data[j + 3] = 255
+    }
     applyEffect(imageData2)
     canvasCtx2.putImageData(imageData2, 0, 0)
     

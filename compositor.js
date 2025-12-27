@@ -1,7 +1,7 @@
 const Compositor = () => {
     const width = 1280
     const height = 720
-    const framebuffer = new Uint8ClampedArray(width * height * 4)
+    const framebuffer = new Uint8ClampedArray(width * height * 3)
     const windows = []
     
     let mouseX = 0
@@ -11,11 +11,10 @@ const Compositor = () => {
     let dragOffsetY = 0
     
     const clearFramebuffer = () => {
-        for (let i = 0; i < framebuffer.length; i += 4) {
+        for (let i = 0; i < framebuffer.length; i += 3) {
             framebuffer[i] = 255
             framebuffer[i + 1] = 255
             framebuffer[i + 2] = 255
-            framebuffer[i + 3] = 255
         }
     }
     
@@ -27,12 +26,11 @@ const Compositor = () => {
                 
                 if (fbX >= 0 && fbX < width && fbY >= 0 && fbY < height) {
                     const srcIndex = (py * w + px) * 4
-                    const dstIndex = (fbY * width + fbX) * 4
+                    const dstIndex = (fbY * width + fbX) * 3
                     
                     framebuffer[dstIndex] = pixels[srcIndex]
                     framebuffer[dstIndex + 1] = pixels[srcIndex + 1]
                     framebuffer[dstIndex + 2] = pixels[srcIndex + 2]
-                    framebuffer[dstIndex + 3] = pixels[srcIndex + 3]
                 }
             }
         }
@@ -45,11 +43,10 @@ const Compositor = () => {
                 const fbY = y + py + 4
                 
                 if (fbX >= 0 && fbX < width && fbY >= 0 && fbY < height) {
-                    const dstIndex = (fbY * width + fbX) * 4
+                    const dstIndex = (fbY * width + fbX) * 3
                     framebuffer[dstIndex] = 0
                     framebuffer[dstIndex + 1] = 0
                     framebuffer[dstIndex + 2] = 0
-                    framebuffer[dstIndex + 3] = 255
                 }
             }
         }
@@ -87,11 +84,10 @@ const Compositor = () => {
                         for (let dy = -1; dy <= 1; dy++) {
                             for (let dx = -1; dx <= 1; dx++) {
                                 if (dx === 0 && dy === 0) continue
-                                const outlineIndex = ((fbY + dy) * width + (fbX + dx)) * 4
+                                const outlineIndex = ((fbY + dy) * width + (fbX + dx)) * 3
                                 framebuffer[outlineIndex] = 255
                                 framebuffer[outlineIndex + 1] = 255
                                 framebuffer[outlineIndex + 2] = 255
-                                framebuffer[outlineIndex + 3] = 255
                             }
                         }
                     }
@@ -106,11 +102,10 @@ const Compositor = () => {
                     const fbY = mouseY + y
                     
                     if (fbX >= 0 && fbX < width && fbY >= 0 && fbY < height) {
-                        const dstIndex = (fbY * width + fbX) * 4
+                        const dstIndex = (fbY * width + fbX) * 3
                         framebuffer[dstIndex] = 0
                         framebuffer[dstIndex + 1] = 0
                         framebuffer[dstIndex + 2] = 0
-                        framebuffer[dstIndex + 3] = 255
                     }
                 }
             }

@@ -20,10 +20,15 @@
         <div class="modal" id="framebufferModal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>Framebuffer Inspector</h3>
+                    <h3>Framebuffer Inspector - Raw Data</h3>
                     <button class="modal-close" id="closeModal">&times;</button>
                 </div>
-                <canvas id="framebufferCanvas" width="1280" height="720"></canvas>
+                <div class="framebuffer-info">
+                    <span>Size: <strong>1280×720</strong></span>
+                    <span>Format: <strong>RGB (3 bytes per pixel)</strong></span>
+                    <span>Total: <strong id="fbTotalBytes">0</strong> bytes</span>
+                </div>
+                <pre id="framebufferData" class="framebuffer-data"></pre>
             </div>
         </div>
         
