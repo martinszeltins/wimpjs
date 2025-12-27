@@ -1,6 +1,6 @@
-const topbarWindow = client.createWindow(0, 0, 1280, 30, 'Topbar', true)
+const topbarWindow = compositor.createWindow(0, 0, 1280, 30, 'Topbar', true)
 
-const topbarPixels = topbarWindow.createPixelBuffer()
+const topbarPixels = new Uint8ClampedArray(1280 * 30 * 4)
 
 for (let y = 0; y < 30; y++) {
     for (let x = 0; x < 1280; x++) {
@@ -61,8 +61,8 @@ const drawTimeText = () => {
 
 setInterval(() => {
     drawTimeText()
-    topbarWindow.draw(topbarPixels)
+    topbarWindow.updatePixels(topbarPixels)
 }, 1000)
 
 drawTimeText()
-topbarWindow.draw(topbarPixels)
+topbarWindow.updatePixels(topbarPixels)

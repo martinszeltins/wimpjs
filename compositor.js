@@ -1,9 +1,9 @@
-const WIMPServer = () => {
+const Compositor = () => {
     const width = 1280
     const height = 720
     const framebuffer = new Uint8ClampedArray(width * height * 4)
-    
     const windows = []
+    
     let mouseX = 0
     let mouseY = 0
     let draggingWindow = null
@@ -19,7 +19,7 @@ const WIMPServer = () => {
         }
     }
     
-    const drawPixelsToFramebuffer = (x, y, w, h, pixels) => {
+    const drawPixels = (x, y, w, h, pixels) => {
         for (let py = 0; py < h; py++) {
             for (let px = 0; px < w; px++) {
                 const fbX = x + px
@@ -117,21 +117,6 @@ const WIMPServer = () => {
         }
     }
     
-    const composite = () => {
-        clearFramebuffer()
-        
-        for (const window of windows) {
-            if (!window.noShadow) {
-                drawShadow(window.x, window.y, window.width, window.height)
-            }
-            if (window.pixels) {
-                drawPixelsToFramebuffer(window.x, window.y, window.width, window.height, window.pixels)
-            }
-        }
-        
-        drawCursor()
-    }
-    
     const createWindow = (x, y, w, h, name = '', noShadow = false) => {
         const window = {
             id: Math.random().toString(36).substr(2, 9),
@@ -144,20 +129,18 @@ const WIMPServer = () => {
             noShadow
         }
         windows.push(window)
-        return window.id
-    }
-    
-    const updateWindowPixels = (windowId, pixels) => {
-        const window = windows.find(w => w.id === windowId)
-        if (window) {
-            window.pixels = pixels
-        }
-    }
-    
-    const closeWindow = (windowId) => {
-        const index = windows.findIndex(w => w.id === windowId)
-        if (index !== -1) {
-            windows.splice(index, 1)
+        
+        return {
+            id: window.id,
+            updatePixels: (pixels) => {
+                window.pixels = pixels
+            },
+            close: () => {
+                const index = windows.findIndex(w => w.id === window.id)
+                if (index !== -1) {
+                    windows.splice(index, 1)
+                }
+            }
         }
     }
     
@@ -219,21 +202,30 @@ const WIMPServer = () => {
         draggingWindow = null
     }
     
-    const getFramebuffer = () => framebuffer
-    const getWindows = () => windows
-    const getMousePosition = () => ({ x: mouseX, y: mouseY })
+    const composite = () => {
+        clearFramebuffer()
+        
+        for (const window of windows) {
+            if (!window.noShadow) {
+                drawShadow(window.x, window.y, window.width, window.height)
+            }
+            if (window.pixels) {
+                drawPixels(window.x, window.y, window.width, window.height, window.pixels)
+            }
+        }
+        
+        drawCursor()
+    }
     
     return {
         createWindow,
-        updateWindowPixels,
-        closeWindow,
         handleMouseMove,
         handleMouseDown,
         handleMouseUp,
         composite,
-        getFramebuffer,
-        getWindows,
-        getMousePosition,
+        getFramebuffer: () => framebuffer,
+        getWindows: () => windows,
+        getMousePosition: () => ({ x: mouseX, y: mouseY }),
         width,
         height
     }

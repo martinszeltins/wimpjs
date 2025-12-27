@@ -1,12 +1,12 @@
 const dockWidth = 400
 const dockX = (1280 - dockWidth) / 2
-const dockWindow = client.createWindow(dockX, 665, dockWidth, 40, 'Dock', true)
+const dockWindow = compositor.createWindow(dockX, 665, dockWidth, 40, 'Dock', true)
 
-const dockPixels = dockWindow.createPixelBuffer()
+const dockPixels = new Uint8ClampedArray(dockWidth * 40 * 4)
 let hoveredDockItem = null
 
 const getDockItemAtPosition = (x, y) => {
-    const serverWindows = server.getWindows()
+    const serverWindows = compositor.getWindows()
     if (x < dockX || x > dockX + dockWidth ||
         y < 665 || y > 665 + 40) {
         return null
@@ -36,12 +36,12 @@ const updateDock = () => {
         }
     }
     
-    const appWindows = server.getWindows()
+    const appWindows = compositor.getWindows()
     const itemWidth = 50
     const totalWidth = appWindows.length * itemWidth
     let startX = (dockWidth - totalWidth) / 2
     
-    const mousePos = server.getMousePosition()
+    const mousePos = compositor.getMousePosition()
     hoveredDockItem = getDockItemAtPosition(mousePos.x, mousePos.y)
     
     for (const window of appWindows) {
@@ -108,7 +108,7 @@ const updateDock = () => {
         startX += itemWidth
     }
     
-    dockWindow.draw(dockPixels)
+    dockWindow.updatePixels(dockPixels)
 }
 
 setInterval(updateDock, 100)
