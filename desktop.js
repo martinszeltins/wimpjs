@@ -30,6 +30,9 @@ const magnifierCanvas = document.getElementById('magnifierCanvas')
 const magnifierCtx = magnifierCanvas.getContext('2d')
 const magnifierDiv = document.getElementById('magnifier')
 
+const asciiOverlay = document.getElementById('asciiOverlay')
+const asciiCtx = asciiOverlay.getContext('2d')
+
 let currentEffect = 0
 const effects = ['None', 'Grayscale', 'Sepia', 'CRT Scanlines', 'Pixelated']
 let effect3DEnabled = false
@@ -39,6 +42,21 @@ let cubeTargetRotation = 0
 let currentDesktop = 0
 let wobblyEnabled = false
 const wobbleData = new Map()
+let asciiEnabled = false
+let heatmapEnabled = false
+const windowHeatMap = new Map()
+let drawModeEnabled = false
+const drawingLayer = new Uint8ClampedArray(1280 * 720 * 3)
+let isDrawing = false
+let lastDrawX = -1
+let lastDrawY = -1
+
+for (let i = 0; i < drawingLayer.length; i += 3) {
+    drawingLayer[i] = 255
+    drawingLayer[i + 1] = 255
+    drawingLayer[i + 2] = 255
+}
+
 let magnifierEnabled = false
 let pipEnabled = false
 let mousePageX = 0
@@ -49,6 +67,9 @@ const btnEffect = document.getElementById('btnEffect')
 const btn3D = document.getElementById('btn3D')
 const btnCube = document.getElementById('btnCube')
 const btnWobbly = document.getElementById('btnWobbly')
+const btnAscii = document.getElementById('btnAscii')
+const btnHeatmap = document.getElementById('btnHeatmap')
+const btnDraw = document.getElementById('btnDraw')
 const btnMagnifier = document.getElementById('btnMagnifier')
 const btnPip = document.getElementById('btnPip')
 const btnTest = document.getElementById('btnTest')
@@ -249,6 +270,35 @@ btnWobbly.addEventListener('click', () => {
     }
 })
 
+btnAscii.addEventListener('click', () => {
+    asciiEnabled = !asciiEnabled
+    btnAscii.textContent = 'ASCII Mode: ' + (asciiEnabled ? 'ON' : 'OFF')
+    btnAscii.classList.toggle('active', asciiEnabled)
+    asciiOverlay.style.display = asciiEnabled ? 'block' : 'none'
+})
+
+btnHeatmap.addEventListener('click', () => {
+    heatmapEnabled = !heatmapEnabled
+    btnHeatmap.textContent = 'Heat Map: ' + (heatmapEnabled ? 'ON' : 'OFF')
+    btnHeatmap.classList.toggle('active', heatmapEnabled)
+    if (!heatmapEnabled) {
+        windowHeatMap.clear()
+    }
+})
+
+btnDraw.addEventListener('click', () => {
+    drawModeEnabled = !drawModeEnabled
+    btnDraw.textContent = 'Draw Mode: ' + (drawModeEnabled ? 'ON' : 'OFF')
+    btnDraw.classList.toggle('active', drawModeEnabled)
+    if (!drawModeEnabled) {
+        for (let i = 0; i < drawingLayer.length; i += 3) {
+            drawingLayer[i] = 255
+            drawingLayer[i + 1] = 255
+            drawingLayer[i + 2] = 255
+        }
+    }
+})
+
 btnMagnifier.addEventListener('click', () => {
     magnifierEnabled = !magnifierEnabled
     btnMagnifier.textContent = 'Magnifier: ' + (magnifierEnabled ? 'ON' : 'OFF')
@@ -336,7 +386,41 @@ canvas1.addEventListener('mousemove', (event) => {
     const rect = canvas1.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
-    compositor.handleMouseMove(x, y)
+    
+    if (drawModeEnabled && isDrawing) {
+        const drawX = Math.floor(x)
+        const drawY = Math.floor(y)
+        
+        if (lastDrawX !== -1 && lastDrawY !== -1) {
+            const dx = drawX - lastDrawX
+            const dy = drawY - lastDrawY
+            const steps = Math.max(Math.abs(dx), Math.abs(dy))
+            
+            for (let i = 0; i <= steps; i++) {
+                const t = steps > 0 ? i / steps : 0
+                const px = Math.floor(lastDrawX + dx * t)
+                const py = Math.floor(lastDrawY + dy * t)
+                
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const dpx = px + dx
+                        const dpy = py + dy
+                        if (dpx >= 0 && dpx < 1280 && dpy >= 0 && dpy < 720) {
+                            const idx = (dpy * 1280 + dpx) * 3
+                            drawingLayer[idx] = 255
+                            drawingLayer[idx + 1] = 0
+                            drawingLayer[idx + 2] = 0
+                        }
+                    }
+                }
+            }
+        }
+        
+        lastDrawX = drawX
+        lastDrawY = drawY
+    } else {
+        compositor.handleMouseMove(x, y)
+    }
 })
 
 canvas1.addEventListener('mouseenter', (event) => {
@@ -350,12 +434,25 @@ canvas1.addEventListener('mousedown', (event) => {
     const rect = canvas1.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
-    const transforms = effect3DEnabled ? windowAnimations : null
-    compositor.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null, transforms)
+    
+    if (drawModeEnabled) {
+        isDrawing = true
+        lastDrawX = Math.floor(x)
+        lastDrawY = Math.floor(y)
+    } else {
+        const transforms = effect3DEnabled ? windowAnimations : null
+        compositor.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null, transforms)
+    }
 })
 
 canvas1.addEventListener('mouseup', () => {
-    compositor.handleMouseUp()
+    if (drawModeEnabled) {
+        isDrawing = false
+        lastDrawX = -1
+        lastDrawY = -1
+    } else {
+        compositor.handleMouseUp()
+    }
 })
 
 pipCanvas.addEventListener('mousemove', (event) => {
@@ -652,6 +749,56 @@ const render = () => {
     
     const framebuffer = compositor.getFramebuffer()
     
+    if (heatmapEnabled) {
+        const windows = compositor.getWindows()
+        windows.forEach(win => {
+            const heat = windowHeatMap.get(win.id) || 0
+            windowHeatMap.set(win.id, Math.min(heat + 0.5, 100))
+        })
+        
+        windowHeatMap.forEach((heat, winId) => {
+            if (heat > 0) {
+                windowHeatMap.set(winId, heat * 0.98)
+            }
+        })
+        
+        const topWindow = windows[windows.length - 1]
+        if (topWindow) {
+            const heat = windowHeatMap.get(topWindow.id) || 0
+            windowHeatMap.set(topWindow.id, Math.min(heat + 2, 100))
+        }
+        
+        for (let i = 0; i < framebuffer.length; i += 3) {
+            const x = (i / 3) % 1280
+            const y = Math.floor((i / 3) / 1280)
+            
+            let maxHeat = 0
+            windows.forEach(win => {
+                if (x >= win.x && x < win.x + win.width && y >= win.y && y < win.y + win.height) {
+                    const heat = windowHeatMap.get(win.id) || 0
+                    maxHeat = Math.max(maxHeat, heat)
+                }
+            })
+            
+            if (maxHeat > 0) {
+                const intensity = maxHeat / 100
+                framebuffer[i] = Math.min(255, framebuffer[i] + intensity * 100)
+                framebuffer[i + 1] = Math.max(0, framebuffer[i + 1] - intensity * 50)
+                framebuffer[i + 2] = Math.max(0, framebuffer[i + 2] - intensity * 50)
+            }
+        }
+    }
+    
+    if (drawModeEnabled) {
+        for (let i = 0; i < framebuffer.length; i += 3) {
+            if (drawingLayer[i] !== 255 || drawingLayer[i + 1] !== 255 || drawingLayer[i + 2] !== 255) {
+                framebuffer[i] = drawingLayer[i]
+                framebuffer[i + 1] = drawingLayer[i + 1]
+                framebuffer[i + 2] = drawingLayer[i + 2]
+            }
+        }
+    }
+    
     const imageData1 = canvasCtx1.createImageData(compositor.width, compositor.height)
     for (let i = 0, j = 0; i < framebuffer.length; i += 3, j += 4) {
         imageData1.data[j] = framebuffer[i]
@@ -670,6 +817,41 @@ const render = () => {
     }
     applyEffect(imageData2)
     canvasCtx2.putImageData(imageData2, 0, 0)
+    
+    if (asciiEnabled) {
+        asciiCtx.fillStyle = 'black'
+        asciiCtx.fillRect(0, 0, 1280, 720)
+        asciiCtx.font = '8px monospace'
+        asciiCtx.fillStyle = 'lime'
+        
+        const chars = ' .:-=+*#%@'
+        const cellWidth = 6
+        const cellHeight = 10
+        
+        for (let y = 0; y < 720; y += cellHeight) {
+            for (let x = 0; x < 1280; x += cellWidth) {
+                let brightness = 0
+                let samples = 0
+                
+                for (let dy = 0; dy < cellHeight && y + dy < 720; dy++) {
+                    for (let dx = 0; dx < cellWidth && x + dx < 1280; dx++) {
+                        const idx = ((y + dy) * 1280 + (x + dx)) * 3
+                        const r = framebuffer[idx]
+                        const g = framebuffer[idx + 1]
+                        const b = framebuffer[idx + 2]
+                        brightness += (r + g + b) / 3
+                        samples++
+                    }
+                }
+                
+                brightness /= samples
+                const charIndex = Math.floor((brightness / 255) * (chars.length - 1))
+                const char = chars[charIndex]
+                
+                asciiCtx.fillText(char, x, y + 8)
+            }
+        }
+    }
     
     if (pipEnabled) {
         pipCtx.drawImage(canvas1, 0, 0, 1280, 720, 0, 0, 320, 180)

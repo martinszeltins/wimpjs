@@ -154,7 +154,8 @@ const Compositor = () => {
             height: h,
             pixels: null,
             name,
-            noShadow
+            noShadow,
+            onFocus: null
         }
         windows.push(window)
         
@@ -168,6 +169,9 @@ const Compositor = () => {
                 if (index !== -1) {
                     windows.splice(index, 1)
                 }
+            },
+            setOnFocus: (callback) => {
+                window.onFocus = callback
             }
         }
     }
@@ -192,6 +196,7 @@ const Compositor = () => {
             if (index !== -1) {
                 windows.splice(index, 1)
                 windows.push(dockItem)
+                if (dockItem.onFocus) dockItem.onFocus()
             }
             return
         }
@@ -239,6 +244,7 @@ const Compositor = () => {
                 } else {
                     windows.splice(i, 1)
                     windows.push(window)
+                    if (window.onFocus) window.onFocus()
                     
                     const inTitleBar = hitY <= window.y + 25
                     if (inTitleBar) {

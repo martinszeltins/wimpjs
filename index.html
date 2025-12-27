@@ -14,6 +14,9 @@
             <button id="btn3D">3D Windows: OFF</button>
             <button id="btnCube">Desktop Cube: OFF</button>
             <button id="btnWobbly">Wobbly Drag: OFF</button>
+            <button id="btnAscii">ASCII Mode: OFF</button>
+            <button id="btnHeatmap">Heat Map: OFF</button>
+            <button id="btnDraw">Draw Mode: OFF</button>
             <button id="btnMagnifier">Magnifier: OFF</button>
             <button id="btnPip">Picture-in-Picture: OFF</button>
             <button id="btnTest">Run Automated Tests</button>
@@ -44,6 +47,7 @@
         <div id="magnifier">
             <canvas id="magnifierCanvas" width="200" height="200"></canvas>
         </div>
+        <canvas id="asciiOverlay" width="1280" height="720" style="position: fixed; pointer-events: none; display: none;"></canvas>
         
         <script src="compositor.js"></script>
         <script src="desktop.js"></script>
