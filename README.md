@@ -1,5 +1,7 @@
 # WIMP Graphics System
 
+https://github.com/user-attachments/assets/5cb51a94-63a5-4973-b5fb-9a8fa08fb42f
+
 ![WIMP Graphics System](wimp.png)
 
 Computers have graphics systems like X11 and Wayland etc. They are WIMP (windows, icons, menus, pointer) graphics systems. They are very simple when we break them down to their components. At the end of the day, all they do is draw pixels on the screen. We can break down the graphics system into components / parts / responsibilities.
