@@ -57,6 +57,7 @@
                 border: 3px solid white;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.5);
                 display: none;
+                cursor: pointer;
             }
             #pip.active {
                 display: block;
@@ -177,6 +178,31 @@
             })
 
             canvas1.addEventListener('mouseup', () => {
+                server.handleMouseUp()
+            })
+            
+            pipCanvas.addEventListener('mousemove', (event) => {
+                if (!pipEnabled) return
+                const rect = pipCanvas.getBoundingClientRect()
+                const pipX = event.clientX - rect.left
+                const pipY = event.clientY - rect.top
+                const x = (pipX / 320) * 1280
+                const y = (pipY / 180) * 720
+                server.handleMouseMove(x, y)
+            })
+            
+            pipCanvas.addEventListener('mousedown', (event) => {
+                if (!pipEnabled) return
+                const rect = pipCanvas.getBoundingClientRect()
+                const pipX = event.clientX - rect.left
+                const pipY = event.clientY - rect.top
+                const x = (pipX / 320) * 1280
+                const y = (pipY / 180) * 720
+                server.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null)
+            })
+            
+            pipCanvas.addEventListener('mouseup', () => {
+                if (!pipEnabled) return
                 server.handleMouseUp()
             })
             
