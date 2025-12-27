@@ -1,6 +1,6 @@
-const window1 = createWindow(100, 100, 400, 300, 'App 1')
+const window1 = client.createWindow(100, 100, 400, 300, 'App 1')
 
-const pixels = new Uint8ClampedArray(400 * 300 * 4)
+const pixels = window1.createPixelBuffer()
 
 for (let y = 0; y < 300; y++) {
     for (let x = 0; x < 400; x++) {
@@ -76,4 +76,4 @@ for (let y = 0; y < buttonSize; y++) {
     }
 }
 
-windowDraw(window1, pixels)
+window1.draw(pixels)

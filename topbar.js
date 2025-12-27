@@ -1,6 +1,6 @@
-const topbarWindow = createWindow(0, 0, 1280, 30, 'Topbar', true)
+const topbarWindow = client.createWindow(0, 0, 1280, 30, 'Topbar', true)
 
-const topbarPixels = new Uint8ClampedArray(1280 * 30 * 4)
+const topbarPixels = topbarWindow.createPixelBuffer()
 
 for (let y = 0; y < 30; y++) {
     for (let x = 0; x < 1280; x++) {
@@ -61,8 +61,8 @@ const drawTimeText = () => {
 
 setInterval(() => {
     drawTimeText()
-    windowDraw(topbarWindow, topbarPixels)
+    topbarWindow.draw(topbarPixels)
 }, 1000)
 
 drawTimeText()
-windowDraw(topbarWindow, topbarPixels)
+topbarWindow.draw(topbarPixels)

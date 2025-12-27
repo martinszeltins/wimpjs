@@ -1,6 +1,6 @@
-const window2 = createWindow(300, 200, 350, 250, 'App 2')
+const window2 = client.createWindow(300, 200, 350, 250, 'App 2')
 
-const pixels2 = new Uint8ClampedArray(350 * 250 * 4)
+const pixels2 = window2.createPixelBuffer()
 
 for (let y = 0; y < 250; y++) {
     for (let x = 0; x < 350; x++) {
@@ -91,4 +91,4 @@ for (let i = 0; i < 20; i++) {
     }
 }
 
-windowDraw(window2, pixels2)
+window2.draw(pixels2)

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>WIMP Graphics System</title>
+        <title>WIMP - Dual Display Demo</title>
 
         <style>
             body {
@@ -9,23 +9,87 @@
                 padding: 20px;
                 background: #999;
                 display: flex;
+                flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 min-height: 100vh;
+                gap: 20px;
             }
             canvas {
                 display: block;
                 background: white;
-                margin-top: -60px;
                 border: 2px solid black;
                 cursor: none;
+            }
+            .label {
+                color: white;
+                font-family: monospace;
+                font-size: 18px;
+                margin-bottom: -10px;
             }
         </style>
     </head>
 
     <body>
-        <canvas id="screen" width="1280" height="720"></canvas>
-        <script src="app.js"></script>
+        <div class="label">Display 1 (Interactive)</div>
+        <canvas id="screen1" width="1280" height="720"></canvas>
+        <div class="label">Display 2 (Mirror)</div>
+        <canvas id="screen2" width="1280" height="720"></canvas>
+        
+        <script src="server.js"></script>
+        <script src="client.js"></script>
+        <script>
+            const canvas1 = document.getElementById('screen1')
+            const canvasCtx1 = canvas1.getContext('2d')
+            
+            const canvas2 = document.getElementById('screen2')
+            const canvasCtx2 = canvas2.getContext('2d')
+
+            const server = WIMPServer()
+            const client = WIMPClient(server)
+
+            canvas1.addEventListener('mousemove', (event) => {
+                const rect = canvas1.getBoundingClientRect()
+                const x = event.clientX - rect.left
+                const y = event.clientY - rect.top
+                server.handleMouseMove(x, y)
+            })
+
+            canvas1.addEventListener('mouseenter', (event) => {
+                const rect = canvas1.getBoundingClientRect()
+                const x = event.clientX - rect.left
+                const y = event.clientY - rect.top
+                server.handleMouseMove(x, y)
+            })
+
+            canvas1.addEventListener('mousedown', (event) => {
+                const rect = canvas1.getBoundingClientRect()
+                const x = event.clientX - rect.left
+                const y = event.clientY - rect.top
+                server.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null)
+            })
+
+            canvas1.addEventListener('mouseup', () => {
+                server.handleMouseUp()
+            })
+
+            const render = () => {
+                server.composite()
+                
+                const framebuffer = server.getFramebuffer()
+                const imageData1 = canvasCtx1.createImageData(server.width, server.height)
+                imageData1.data.set(framebuffer)
+                canvasCtx1.putImageData(imageData1, 0, 0)
+                
+                const imageData2 = canvasCtx2.createImageData(server.width, server.height)
+                imageData2.data.set(framebuffer)
+                canvasCtx2.putImageData(imageData2, 0, 0)
+
+                requestAnimationFrame(render)
+            }
+
+            render()
+        </script>
         <script src="topbar.js"></script>
         <script src="app1.js"></script>
         <script src="app2.js"></script>
