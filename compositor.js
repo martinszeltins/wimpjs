@@ -18,19 +18,52 @@ const Compositor = () => {
         }
     }
     
-    const drawPixels = (x, y, w, h, pixels) => {
-        for (let py = 0; py < h; py++) {
-            for (let px = 0; px < w; px++) {
-                const fbX = x + px
-                const fbY = y + py
-                
-                if (fbX >= 0 && fbX < width && fbY >= 0 && fbY < height) {
-                    const srcIndex = (py * w + px) * 4
-                    const dstIndex = (fbY * width + fbX) * 3
+    const drawPixels = (x, y, w, h, pixels, transform) => {
+        if (!transform || !transform.visible) {
+            if (!transform) {
+                for (let py = 0; py < h; py++) {
+                    for (let px = 0; px < w; px++) {
+                        const fbX = x + px
+                        const fbY = y + py
+                        
+                        if (fbX >= 0 && fbX < width && fbY >= 0 && fbY < height) {
+                            const srcIndex = (py * w + px) * 4
+                            const dstIndex = (fbY * width + fbX) * 3
+                            
+                            framebuffer[dstIndex] = pixels[srcIndex]
+                            framebuffer[dstIndex + 1] = pixels[srcIndex + 1]
+                            framebuffer[dstIndex + 2] = pixels[srcIndex + 2]
+                        }
+                    }
+                }
+            }
+        } else {
+            const centerX = x + w / 2
+            const centerY = y + h / 2
+            const cos = Math.cos(transform.rotation)
+            const sin = Math.sin(transform.rotation)
+            const scale = transform.scale || (1 - Math.abs(transform.rotation) * 0.3)
+            const opacity = transform.opacity !== undefined ? transform.opacity : 1
+            
+            for (let py = 0; py < h; py++) {
+                for (let px = 0; px < w; px++) {
+                    const dx = px - w / 2
+                    const dy = py - h / 2
                     
-                    framebuffer[dstIndex] = pixels[srcIndex]
-                    framebuffer[dstIndex + 1] = pixels[srcIndex + 1]
-                    framebuffer[dstIndex + 2] = pixels[srcIndex + 2]
+                    const rotX = dx * cos - dy * sin
+                    const rotY = dx * sin + dy * cos
+                    
+                    const fbX = Math.floor(centerX + rotX * scale + transform.wobbleX)
+                    const fbY = Math.floor(centerY + rotY * scale + transform.wobbleY)
+                    
+                    if (fbX >= 0 && fbX < width && fbY >= 0 && fbY < height) {
+                        const srcIndex = (py * w + px) * 4
+                        const dstIndex = (fbY * width + fbX) * 3
+                        
+                        framebuffer[dstIndex] = pixels[srcIndex] * opacity
+                        framebuffer[dstIndex + 1] = pixels[srcIndex + 1] * opacity
+                        framebuffer[dstIndex + 2] = pixels[srcIndex + 2] * opacity
+                    }
                 }
             }
         }
@@ -149,7 +182,7 @@ const Compositor = () => {
         }
     }
     
-    const handleMouseDown = (x, y, getDockItemAtPosition) => {
+    const handleMouseDown = (x, y, getDockItemAtPosition, transforms) => {
         x = Math.floor(x)
         y = Math.floor(y)
         
@@ -165,15 +198,41 @@ const Compositor = () => {
         
         for (let i = windows.length - 1; i >= 0; i--) {
             const window = windows[i]
-            const inWindow = x >= window.x && x <= window.x + window.width &&
-                            y >= window.y && y <= window.y + window.height
+            const transform = transforms ? transforms.get(window.id) : null
+            
+            let hitX = x
+            let hitY = y
+            
+            if (transform) {
+                const centerX = window.x + window.width / 2
+                const centerY = window.y + window.height / 2
+                
+                hitX = x - transform.wobbleX
+                hitY = y - transform.wobbleY
+                
+                const dx = hitX - centerX
+                const dy = hitY - centerY
+                
+                const cos = Math.cos(-transform.rotation)
+                const sin = Math.sin(-transform.rotation)
+                const scale = 1 - Math.abs(transform.rotation) * 0.3
+                
+                const rotX = (dx * cos - dy * sin) / scale
+                const rotY = (dx * sin + dy * cos) / scale
+                
+                hitX = centerX + rotX
+                hitY = centerY + rotY
+            }
+            
+            const inWindow = hitX >= window.x && hitX <= window.x + window.width &&
+                            hitY >= window.y && hitY <= window.y + window.height
             
             if (inWindow) {
                 const buttonSize = 12
                 const buttonX = window.x + window.width - buttonSize - 5
                 const buttonY = window.y + 5
-                const inCloseButton = x >= buttonX && x <= buttonX + buttonSize &&
-                                     y >= buttonY && y <= buttonY + buttonSize
+                const inCloseButton = hitX >= buttonX && hitX <= buttonX + buttonSize &&
+                                     hitY >= buttonY && hitY <= buttonY + buttonSize
                 
                 if (inCloseButton) {
                     windows.splice(i, 1)
@@ -181,11 +240,11 @@ const Compositor = () => {
                     windows.splice(i, 1)
                     windows.push(window)
                     
-                    const inTitleBar = y <= window.y + 25
+                    const inTitleBar = hitY <= window.y + 25
                     if (inTitleBar) {
                         draggingWindow = window
-                        dragOffsetX = x - window.x
-                        dragOffsetY = y - window.y
+                        dragOffsetX = hitX - window.x
+                        dragOffsetY = hitY - window.y
                     }
                 }
                 break
@@ -197,15 +256,16 @@ const Compositor = () => {
         draggingWindow = null
     }
     
-    const composite = () => {
+    const composite = (transforms) => {
         clearFramebuffer()
         
         for (const window of windows) {
-            if (!window.noShadow) {
+            const transform = transforms ? transforms.get(window.id) : null
+            if (!window.noShadow && !transform) {
                 drawShadow(window.x, window.y, window.width, window.height)
             }
             if (window.pixels) {
-                drawPixels(window.x, window.y, window.width, window.height, window.pixels)
+                drawPixels(window.x, window.y, window.width, window.height, window.pixels, transform)
             }
         }
         
@@ -221,6 +281,7 @@ const Compositor = () => {
         getFramebuffer: () => framebuffer,
         getWindows: () => windows,
         getMousePosition: () => ({ x: mouseX, y: mouseY }),
+        getDraggingWindow: () => draggingWindow,
         width,
         height
     }

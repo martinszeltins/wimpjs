@@ -32,12 +32,23 @@ const magnifierDiv = document.getElementById('magnifier')
 
 let currentEffect = 0
 const effects = ['None', 'Grayscale', 'Sepia', 'CRT Scanlines', 'Pixelated']
+let effect3DEnabled = false
+let cubeEnabled = false
+let cubeRotation = 0
+let cubeTargetRotation = 0
+let currentDesktop = 0
+let wobblyEnabled = false
+const wobbleData = new Map()
 let magnifierEnabled = false
 let pipEnabled = false
 let mousePageX = 0
 let mousePageY = 0
+const windowAnimations = new Map()
 
 const btnEffect = document.getElementById('btnEffect')
+const btn3D = document.getElementById('btn3D')
+const btnCube = document.getElementById('btnCube')
+const btnWobbly = document.getElementById('btnWobbly')
 const btnMagnifier = document.getElementById('btnMagnifier')
 const btnPip = document.getElementById('btnPip')
 const btnTest = document.getElementById('btnTest')
@@ -191,6 +202,53 @@ btnEffect.addEventListener('click', () => {
     btnEffect.textContent = 'Effect: ' + effects[currentEffect]
 })
 
+btn3D.addEventListener('click', () => {
+    effect3DEnabled = !effect3DEnabled
+    btn3D.textContent = '3D Windows: ' + (effect3DEnabled ? 'ON' : 'OFF')
+    btn3D.classList.toggle('active', effect3DEnabled)
+    
+    if (effect3DEnabled) {
+        const windows = compositor.getWindows()
+        windows.forEach(win => {
+            windowAnimations.set(win.id, {
+                wobbleX: 0,
+                wobbleY: 0,
+                velocityX: (Math.random() - 0.5) * 8,
+                velocityY: (Math.random() - 0.5) * 8,
+                rotation: 0,
+                rotationVel: (Math.random() - 0.5) * 0.5,
+                visible: true
+            })
+        })
+    } else {
+        windowAnimations.clear()
+    }
+})
+
+btnCube.addEventListener('click', () => {
+    cubeEnabled = !cubeEnabled
+    btnCube.textContent = 'Desktop Cube: ' + (cubeEnabled ? 'ON' : 'OFF')
+    btnCube.classList.toggle('active', cubeEnabled)
+    
+    if (cubeEnabled) {
+        const windows = compositor.getWindows()
+        windows.forEach((win, idx) => {
+            if (!win.desktop) {
+                win.desktop = idx % 4
+            }
+        })
+    }
+})
+
+btnWobbly.addEventListener('click', () => {
+    wobblyEnabled = !wobblyEnabled
+    btnWobbly.textContent = 'Wobbly Drag: ' + (wobblyEnabled ? 'ON' : 'OFF')
+    btnWobbly.classList.toggle('active', wobblyEnabled)
+    if (!wobblyEnabled) {
+        wobbleData.clear()
+    }
+})
+
 btnMagnifier.addEventListener('click', () => {
     magnifierEnabled = !magnifierEnabled
     btnMagnifier.textContent = 'Magnifier: ' + (magnifierEnabled ? 'ON' : 'OFF')
@@ -252,6 +310,18 @@ framebufferModal.addEventListener('click', (event) => {
     }
 })
 
+document.addEventListener('keydown', (event) => {
+    if (cubeEnabled) {
+        if (event.key === 'ArrowLeft' || event.key === 'a') {
+            currentDesktop = (currentDesktop + 1) % 4
+            cubeTargetRotation = currentDesktop * Math.PI / 2
+        } else if (event.key === 'ArrowRight' || event.key === 'd') {
+            currentDesktop = (currentDesktop + 3) % 4
+            cubeTargetRotation = currentDesktop * Math.PI / 2
+        }
+    }
+})
+
 document.addEventListener('mousemove', (event) => {
     mousePageX = event.pageX
     mousePageY = event.pageY
@@ -280,7 +350,8 @@ canvas1.addEventListener('mousedown', (event) => {
     const rect = canvas1.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
-    compositor.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null)
+    const transforms = effect3DEnabled ? windowAnimations : null
+    compositor.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null, transforms)
 })
 
 canvas1.addEventListener('mouseup', () => {
@@ -304,7 +375,8 @@ pipCanvas.addEventListener('mousedown', (event) => {
     const pipY = event.clientY - rect.top
     const x = (pipX / 320) * 1280
     const y = (pipY / 180) * 720
-    compositor.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null)
+    const transforms = effect3DEnabled ? windowAnimations : null
+    compositor.handleMouseDown(x, y, typeof getDockItemAtPosition !== 'undefined' ? getDockItemAtPosition : null, transforms)
 })
 
 pipCanvas.addEventListener('mouseup', () => {
@@ -359,7 +431,224 @@ const applyEffect = (imageData) => {
 }
 
 const render = () => {
-    compositor.composite()
+    let transforms = null
+    
+    if (wobblyEnabled) {
+        const draggingWin = compositor.getDraggingWindow()
+        const windows = compositor.getWindows()
+        
+        windows.forEach(win => {
+            let wobble = wobbleData.get(win.id)
+            
+            if (win === draggingWin) {
+                if (!wobble) {
+                    const gridSize = 5
+                    wobble = {
+                        grid: [],
+                        velocities: []
+                    }
+                    
+                    for (let i = 0; i < gridSize; i++) {
+                        wobble.grid[i] = []
+                        wobble.velocities[i] = []
+                        for (let j = 0; j < gridSize; j++) {
+                            wobble.grid[i][j] = { x: 0, y: 0 }
+                            wobble.velocities[i][j] = { x: 0, y: 0 }
+                        }
+                    }
+                    wobbleData.set(win.id, wobble)
+                }
+                
+                const gridSize = wobble.grid.length
+                const stiffness = 0.3
+                const damping = 0.85
+                const spread = 0.4
+                
+                for (let i = 0; i < gridSize; i++) {
+                    for (let j = 0; j < gridSize; j++) {
+                        const point = wobble.grid[i][j]
+                        const vel = wobble.velocities[i][j]
+                        
+                        let forceX = -point.x * stiffness
+                        let forceY = -point.y * stiffness
+                        
+                        if (i > 0) {
+                            forceX += (wobble.grid[i-1][j].x - point.x) * spread
+                            forceY += (wobble.grid[i-1][j].y - point.y) * spread
+                        }
+                        if (i < gridSize - 1) {
+                            forceX += (wobble.grid[i+1][j].x - point.x) * spread
+                            forceY += (wobble.grid[i+1][j].y - point.y) * spread
+                        }
+                        if (j > 0) {
+                            forceX += (wobble.grid[i][j-1].x - point.x) * spread
+                            forceY += (wobble.grid[i][j-1].y - point.y) * spread
+                        }
+                        if (j < gridSize - 1) {
+                            forceX += (wobble.grid[i][j+1].x - point.x) * spread
+                            forceY += (wobble.grid[i][j+1].y - point.y) * spread
+                        }
+                        
+                        vel.x = (vel.x + forceX) * damping
+                        vel.y = (vel.y + forceY) * damping
+                        
+                        point.x += vel.x
+                        point.y += vel.y
+                    }
+                }
+                
+                const topCenter = Math.floor(gridSize / 2)
+                const mousePos = compositor.getMousePosition()
+                const dragStrength = 15
+                wobble.grid[0][topCenter].x += (Math.random() - 0.5) * dragStrength
+                wobble.grid[0][topCenter].y += (Math.random() - 0.5) * dragStrength
+                
+            } else if (wobble) {
+                const gridSize = wobble.grid.length
+                let hasMovement = false
+                
+                for (let i = 0; i < gridSize; i++) {
+                    for (let j = 0; j < gridSize; j++) {
+                        const point = wobble.grid[i][j]
+                        const vel = wobble.velocities[i][j]
+                        
+                        if (Math.abs(point.x) > 0.1 || Math.abs(point.y) > 0.1 || 
+                            Math.abs(vel.x) > 0.1 || Math.abs(vel.y) > 0.1) {
+                            hasMovement = true
+                            
+                            const stiffness = 0.3
+                            const damping = 0.85
+                            
+                            vel.x = (vel.x - point.x * stiffness) * damping
+                            vel.y = (vel.y - point.y * stiffness) * damping
+                            
+                            point.x += vel.x
+                            point.y += vel.y
+                        } else {
+                            point.x = 0
+                            point.y = 0
+                            vel.x = 0
+                            vel.y = 0
+                        }
+                    }
+                }
+                
+                if (!hasMovement) {
+                    wobbleData.delete(win.id)
+                }
+            }
+        })
+    }
+    
+    if (cubeEnabled) {
+        cubeRotation += (cubeTargetRotation - cubeRotation) * 0.1
+        
+        const windows = compositor.getWindows()
+        transforms = new Map()
+        
+        windows.forEach(win => {
+            const desktop = win.desktop || 0
+            const faceAngle = desktop * Math.PI / 2
+            const relativeAngle = faceAngle - cubeRotation
+            
+            const radius = 600
+            const centerX = 640
+            const centerY = 360
+            
+            const windowCenterX = win.x + win.width / 2
+            const windowCenterY = win.y + win.height / 2
+            
+            const localX = windowCenterX - centerX
+            const localY = windowCenterY - centerY
+            
+            const x3D = Math.sin(relativeAngle) * radius + localX * Math.cos(relativeAngle)
+            const z3D = Math.cos(relativeAngle) * radius - localX * Math.sin(relativeAngle)
+            
+            const perspective = 800
+            const scale = perspective / (perspective + z3D)
+            
+            const screenX = x3D * scale
+            const offsetX = screenX - localX
+            const offsetY = 0
+            
+            const visible = z3D > -200
+            const opacity = Math.max(0, Math.min(1, 1 - Math.abs(relativeAngle) / Math.PI))
+            
+            transforms.set(win.id, {
+                wobbleX: offsetX,
+                wobbleY: offsetY,
+                rotation: -relativeAngle * 0.3,
+                scale: scale,
+                opacity: opacity,
+                visible: visible && opacity > 0.05
+            })
+        })
+        
+        compositor.composite(transforms)
+    } else if (effect3DEnabled) {
+        const windows = compositor.getWindows()
+        windows.forEach(win => {
+            let anim = windowAnimations.get(win.id)
+            if (!anim) {
+                anim = {
+                    wobbleX: 0,
+                    wobbleY: 0,
+                    velocityX: (Math.random() - 0.5) * 8,
+                    velocityY: (Math.random() - 0.5) * 8,
+                    rotation: 0,
+                    rotationVel: (Math.random() - 0.5) * 0.5,
+                    visible: true
+                }
+                windowAnimations.set(win.id, anim)
+            }
+            
+            anim.wobbleX += anim.velocityX
+            anim.wobbleY += anim.velocityY
+            anim.rotation += anim.rotationVel
+            
+            const damping = 0.95
+            const spring = 0.05
+            anim.velocityX = (anim.velocityX - anim.wobbleX * spring) * damping
+            anim.velocityY = (anim.velocityY - anim.wobbleY * spring) * damping
+            anim.rotationVel *= 0.98
+            
+            if (Math.abs(anim.wobbleX) < 0.01 && Math.abs(anim.velocityX) < 0.01) {
+                anim.wobbleX = 0
+                anim.velocityX = 0
+            }
+            if (Math.abs(anim.wobbleY) < 0.01 && Math.abs(anim.velocityY) < 0.01) {
+                anim.wobbleY = 0
+                anim.velocityY = 0
+            }
+            if (Math.abs(anim.rotation) < 0.001 && Math.abs(anim.rotationVel) < 0.001) {
+                anim.rotation = 0
+                anim.rotationVel = 0
+            }
+        })
+        
+        compositor.composite(windowAnimations)
+    } else {
+        const transforms = wobblyEnabled && wobbleData.size > 0 ? wobbleData : null
+        if (transforms) {
+            const wobbleTransforms = new Map()
+            wobbleData.forEach((wobble, winId) => {
+                const avgX = wobble.grid.reduce((sum, row) => 
+                    sum + row.reduce((s, p) => s + p.x, 0), 0) / (wobble.grid.length * wobble.grid[0].length)
+                const avgY = wobble.grid.reduce((sum, row) => 
+                    sum + row.reduce((s, p) => s + p.y, 0), 0) / (wobble.grid.length * wobble.grid[0].length)
+                
+                wobbleTransforms.set(winId, {
+                    wobbleX: avgX * 0.5,
+                    wobbleY: avgY * 0.5,
+                    rotation: (wobble.grid[0][2].x - wobble.grid[4][2].x) * 0.002,
+                    visible: true
+                })
+            })
+            compositor.composite(wobbleTransforms)
+        } else {
+            compositor.composite()
+        }
+    }
     
     const framebuffer = compositor.getFramebuffer()
     
